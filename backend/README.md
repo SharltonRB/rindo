@@ -92,3 +92,26 @@ y luego falla en tiempo de ejecución**, que es el peor momento para enterarse.
 
 Por eso, antes de añadir una dependencia conviene comprobar que la soporta. La alternativa es
 declarar sus metadatos a mano en `src/main/resources/META-INF/native-image/`.
+
+### Un caso real: por qué faltan tres dependencias de Modulith
+
+El `pom.xml` **no** incluye `spring-modulith-runtime`, `spring-modulith-actuator` ni
+`spring-modulith-observability`, aunque el Initializr las genera por defecto.
+
+Con ellas, el binario nativo compilaba, arrancaba y moría al inicializar el contexto:
+
+```
+Error creating bean with name 'meterRegistryPostProcessor': ExceptionInInitializerError
+Caused by: ClassNotFoundException: com.tngtech.archunit.core.importer.ModuleImportPlugin
+```
+
+Esas tres librerías analizan la estructura de módulos **en tiempo de ejecución** usando ArchUnit,
+que carga un plugin distinto por reflexión según la versión de Java que detecta en caliente. Es
+exactamente lo que la *closed-world assumption* no permite.
+
+- **Qué se pierde:** el endpoint `/actuator/modulith` y las trazas por módulo. Ambos informativos.
+- **Qué no se pierde:** la verificación de modularidad. `ModularidadTest` usa
+  `spring-modulith-starter-test`, en scope `test`, que nunca entra en el binario.
+
+Es el ejemplo de por qué el ticket insiste en revisar la compatibilidad **antes** de añadir una
+librería: el fallo no aparece al compilar, sino al ejecutar.

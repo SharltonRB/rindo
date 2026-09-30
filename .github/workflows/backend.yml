@@ -61,6 +61,24 @@ jobs:
     # native-image es lento por diseno: analiza el grafo completo de clases alcanzables.
     # Los runners de GitHub tienen 16 GB de RAM, holgura que una portatil de 8 GB no da.
     timeout-minutes: 45
+
+    # PostgreSQL efimero para arrancar el binario de verdad. Las credenciales nacen y
+    # mueren con el runner: no son un secreto y no valen fuera de este job.
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: rindo
+          POSTGRES_USER: rindo
+          POSTGRES_PASSWORD: rindo
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
     steps:
       - uses: actions/checkout@v4
 
@@ -78,21 +96,41 @@ jobs:
       - name: Compilar a binario nativo
         run: ./mvnw -B -Pnative native:compile -DskipTests
 
-      # Que native-image termine sin error no demuestra que el binario sirva: puede
-      # compilar y luego fallar al ejecutarse si falta metadata de reflexion. Aqui se
-      # arranca sin base de datos, asi que fallara al conectar; lo que se comprueba es
-      # que Spring llega a inicializarse, no que la aplicacion funcione entera.
-      - name: Comprobar que el binario arranca
+      # Que native-image termine sin error no demuestra nada: el binario puede compilar,
+      # arrancar y morir al inicializar el contexto si falta metadata de reflexion. Por eso
+      # aqui se exige el arranque COMPLETO ("Started RindoApplication") y una respuesta real
+      # del endpoint de salud. Una linea intermedia como "Starting AOT-processed" aparece
+      # tambien cuando la aplicacion se cae justo despues, asi que no sirve como criterio.
+      - name: Comprobar que el binario arranca y responde
         run: |
-          ./target/rindo --spring.main.web-application-type=none > arranque.log 2>&1 || true
-          echo "----- salida -----"
+          ./target/rindo \
+            --spring.datasource.url=jdbc:postgresql://localhost:5432/rindo \
+            --spring.datasource.username=rindo \
+            --spring.datasource.password=rindo \
+            --server.port=8080 > arranque.log 2>&1 &
+          PID=$!
+
+          for _ in $(seq 1 60); do
+            grep -q "Started RindoApplication" arranque.log && break
+            kill -0 "$PID" 2>/dev/null || break
+            sleep 1
+          done
+
+          echo "----- salida del binario -----"
           cat arranque.log
-          if grep -qE "Starting AOT-processed|Started RindoApplication|Cannot load driver|Failed to configure a DataSource|HikariPool" arranque.log; then
-            echo "OK: el binario nativo arranca e inicializa Spring"
-          else
-            echo "ERROR: el binario no llego a inicializar Spring"
+          echo "------------------------------"
+
+          if ! grep -q "Started RindoApplication" arranque.log; then
+            echo "ERROR: el binario nativo no completo el arranque"
             exit 1
           fi
+
+          echo "Comprobando /actuator/health..."
+          curl -fsS --retry 5 --retry-delay 2 http://localhost:8080/actuator/health
+          echo
+
+          kill "$PID" 2>/dev/null || true
+          echo "OK: el binario nativo arranca y responde"
 
       - name: Publicar el binario
         uses: actions/upload-artifact@v4

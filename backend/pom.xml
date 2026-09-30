@@ -59,10 +59,6 @@
 		</dependency>
 		<dependency>
 			<groupId>org.springframework.modulith</groupId>
-			<artifactId>spring-modulith-observability-api</artifactId>
-		</dependency>
-		<dependency>
-			<groupId>org.springframework.modulith</groupId>
 			<artifactId>spring-modulith-starter-core</artifactId>
 		</dependency>
 		<dependency>
@@ -75,21 +71,19 @@
 			<artifactId>postgresql</artifactId>
 			<scope>runtime</scope>
 		</dependency>
-		<dependency>
-			<groupId>org.springframework.modulith</groupId>
-			<artifactId>spring-modulith-actuator</artifactId>
-			<scope>runtime</scope>
-		</dependency>
-		<dependency>
-			<groupId>org.springframework.modulith</groupId>
-			<artifactId>spring-modulith-observability-core</artifactId>
-			<scope>runtime</scope>
-		</dependency>
-		<dependency>
-			<groupId>org.springframework.modulith</groupId>
-			<artifactId>spring-modulith-runtime</artifactId>
-			<scope>runtime</scope>
-		</dependency>
+		<!--
+			spring-modulith-runtime, -actuator y -observability estan deliberadamente
+			ausentes. Arrastran ArchUnit al artefacto de produccion, y ArchUnit carga sus
+			plugins por reflexion segun la version de Java que detecta en caliente. Eso es
+			incompatible con la closed-world assumption de GraalVM: el binario nativo
+			compila, arranca y muere al inicializar el contexto con
+			ClassNotFoundException: com.tngtech.archunit.core.importer.ModuleImportPlugin.
+
+			Lo que se pierde es el endpoint /actuator/modulith y las trazas por modulo, que
+			son informativos. Lo que NO se pierde es la verificacion de modularidad:
+			ModularidadTest usa spring-modulith-starter-test, en scope test, que nunca entra
+			en el binario.
+		-->
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-actuator-test</artifactId>
