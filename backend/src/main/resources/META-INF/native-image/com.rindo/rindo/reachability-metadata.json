@@ -1,0 +1,19 @@
+{
+  "comment": [
+    "Metadatos de reflexion para GraalVM Native Image.",
+    "",
+    "La closed-world assumption obliga a declarar por adelantado todo lo que se usara por",
+    "reflexion: native-image solo mete en el binario lo que puede demostrar que es alcanzable,",
+    "y lo que se resuelve por nombre en tiempo de ejecucion no lo es.",
+    "",
+    "java.util.UUID[]: Hibernate instancia arrays del tipo de la clave primaria al construir el",
+    "EntityManagerFactory. La entidad de publicacion de eventos de Spring Modulith usa UUID como",
+    "id, asi que sin esta declaracion el binario compila, arranca y muere creando el bean",
+    "'entityManagerFactory'. Esta entrada es la que dicta el propio mensaje de error de GraalVM."
+  ],
+  "reflection": [
+    {
+      "type": "java.util.UUID[]"
+    }
+  ]
+}
