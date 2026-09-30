@@ -1,0 +1,102 @@
+name: backend
+
+# Filtros por ruta: un cambio que solo toca frontend/ o docs/ no dispara esta build.
+# Es la contrapartida obligatoria del monorepo, segun el ADR-003.
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'backend/**'
+      - '.github/workflows/backend.yml'
+  pull_request:
+    paths:
+      - 'backend/**'
+      - '.github/workflows/backend.yml'
+
+permissions:
+  contents: read
+
+# Un push nuevo sobre la misma rama cancela la ejecucion anterior: no tiene sentido
+# gastar diez minutos compilando a nativo un commit que ya quedo obsoleto.
+concurrency:
+  group: backend-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    working-directory: backend
+
+jobs:
+  verify:
+    name: Tests y verificacion de modulos
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configurar JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+
+      # Docker viene preinstalado en los runners de Ubuntu, asi que Testcontainers
+      # levanta PostgreSQL sin configuracion adicional.
+      - name: Ejecutar la suite
+        run: ./mvnw -B verify
+
+      - name: Publicar los informes de test
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: informes-surefire
+          path: backend/target/surefire-reports/
+          retention-days: 7
+
+  native:
+    name: Compilacion nativa con GraalVM
+    needs: verify
+    runs-on: ubuntu-latest
+    # native-image es lento por diseno: analiza el grafo completo de clases alcanzables.
+    # Los runners de GitHub tienen 16 GB de RAM, holgura que una portatil de 8 GB no da.
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      # GraalVM 25, no 21: el native-maven-plugin de Spring Boot 4.1 usa el formato nuevo
+      # de reachability metadata, que las versiones de la linea 21 no entienden.
+      # El bytecode se sigue generando para Java 21 (java.version en el pom).
+      - name: Configurar GraalVM 25
+        uses: graalvm/setup-graalvm@v1
+        with:
+          java-version: '25'
+          distribution: graalvm-community
+          cache: maven
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Compilar a binario nativo
+        run: ./mvnw -B -Pnative native:compile -DskipTests
+
+      # Que native-image termine sin error no demuestra que el binario sirva: puede
+      # compilar y luego fallar al ejecutarse si falta metadata de reflexion. Aqui se
+      # arranca sin base de datos, asi que fallara al conectar; lo que se comprueba es
+      # que Spring llega a inicializarse, no que la aplicacion funcione entera.
+      - name: Comprobar que el binario arranca
+        run: |
+          ./target/rindo --spring.main.web-application-type=none > arranque.log 2>&1 || true
+          echo "----- salida -----"
+          cat arranque.log
+          if grep -qE "Starting AOT-processed|Started RindoApplication|Cannot load driver|Failed to configure a DataSource|HikariPool" arranque.log; then
+            echo "OK: el binario nativo arranca e inicializa Spring"
+          else
+            echo "ERROR: el binario no llego a inicializar Spring"
+            exit 1
+          fi
+
+      - name: Publicar el binario
+        uses: actions/upload-artifact@v4
+        with:
+          name: rindo-nativo-linux-x64
+          path: backend/target/rindo
+          retention-days: 7
