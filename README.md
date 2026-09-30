@@ -92,6 +92,9 @@ trazabilidad auditable de cada aprobación.
 - **Commits:** [Conventional Commits](https://www.conventionalcommits.org/es/v1.0.0/).
 - **Decisiones de arquitectura:** se registran como ADR en [`docs/adr/`](docs/adr/).
   Empieza por [ADR-000](docs/adr/000-usar-adrs.md).
+- **Diseño del sistema:** el [modelo de dominio](docs/modelo-de-dominio.md) describe entidades,
+  agregados y módulos, con el [diagrama ER](docs/images/er-dominio.md) y la
+  [máquina de estados del gasto](docs/images/maquina-estados-gasto.md).
 
 Los detalles están en [CONTRIBUTING.md](CONTRIBUTING.md).
 
