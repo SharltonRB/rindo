@@ -1,0 +1,10 @@
+{
+  "reflection": [
+    {
+      "type": "java.util.UUID[]"
+    },
+    {
+      "type": "java.util.UUID"
+    }
+  ]
+}

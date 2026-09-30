@@ -72,7 +72,7 @@ trazabilidad auditable de cada aprobación.
 
 ```
 .
-├── backend/          # API Java 21 + Spring Boot (monolito modular)
+├── backend/          # API Java 21 + Spring Boot (monolito modular) — ver backend/README.md
 ├── frontend/         # SPA React + TypeScript + Vite
 ├── infra/docker/     # Docker Compose y Dockerfiles del entorno local
 ├── docs/
