@@ -1,7 +1,12 @@
-# ADR-001: Mantener backend y frontend en un único repositorio
+# ADR-003: Mantener backend y frontend en un único repositorio
 
 - **Fecha:** 2026-09-29
 - **Estado:** Aceptada
+
+> **Nota de renumeración.** Este ADR se publicó inicialmente como `001-monorepo.md`. Se renumeró a
+> `003` porque los números 001 y 002 estaban reservados a decisiones previas en el orden lógico del
+> proyecto: la arquitectura del backend (ADR-001) y la estrategia de persistencia (ADR-002). El
+> contenido de la decisión no ha cambiado; solo el número de archivo.
 
 ## Contexto
 
