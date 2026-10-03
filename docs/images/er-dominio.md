@@ -90,7 +90,7 @@ erDiagram
         uuid public_id UK
         bigint company_id FK
         bigint uploaded_by_user_id FK
-        text storage_key "clave en S3/MinIO"
+        text storage_key "clave en S3"
         text original_filename
         text content_type
         bigint size_bytes
