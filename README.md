@@ -4,60 +4,82 @@ Plataforma de rendición de gastos que digitaliza facturas y recibos, extrae sus
 trazabilidad auditable de cada aprobación.
 
 > **Estado: En construcción** 🚧
-> El proyecto está en fase inicial. La estructura del repositorio y las convenciones de trabajo ya
-> están definidas; los módulos de backend y frontend se irán incorporando ticket a ticket.
+> El proyecto se construye ticket a ticket. **Hoy funciona:** el esqueleto del backend con sus once
+> módulos de Spring Modulith, el esquema gobernado por Flyway, la compilación a binario nativo con
+> GraalVM, la CI de GitHub Actions y el entorno local con Docker Compose.
+> **Todavía no hay lógica de negocio ni frontend:** los módulos están declarados pero vacíos.
 
 ---
 
 ## Stack
 
+> **Cómo leer estas tablas.** El stack está decidido de principio a fin, pero construido solo en
+> parte. La columna de estado distingue lo uno de lo otro:
+> **✅ ya está en el repositorio** · **🔜 decidido, todavía no implementado**
+
 ### Backend
 
-| Área | Tecnología |
-|------|------------|
-| Lenguaje y framework | Java 21 + Spring Boot |
-| Arquitectura | Spring Modulith (monolito modular) |
-| Seguridad | Spring Security + JWT propio (access token y refresh token) |
-| Persistencia | Spring Data JPA + PostgreSQL + Flyway |
-| IA | Spring AI + Gemini Flash (extracción de facturas) |
-| Resiliencia | Resilience4j (reintentos, circuit breaker) y Bucket4j (rate limiting) |
-| Tiempo real | Server-Sent Events |
-| Documentación de API | springdoc-openapi (Swagger) |
-| Compilación nativa | GraalVM Native Image |
+| Área | Tecnología | Estado |
+|------|------------|:---:|
+| Lenguaje y framework | Java 21 + Spring Boot 4.1 | ✅ |
+| Arquitectura | Spring Modulith (monolito modular) | ✅ |
+| Persistencia | Spring Data JPA + PostgreSQL + Flyway | ✅ |
+| Compilación nativa | GraalVM Native Image | ✅ |
+| Seguridad | Spring Security | ✅ |
+| Seguridad | JWT propio (access token y refresh token) | 🔜 |
+| IA | Spring AI + Gemini Flash (extracción de facturas) | 🔜 |
+| Resiliencia | Resilience4j (reintentos, circuit breaker) y Bucket4j (rate limiting) | 🔜 |
+| Tiempo real | Server-Sent Events | 🔜 |
+| Documentación de API | springdoc-openapi (Swagger) | 🔜 |
 
 ### Procesamiento asíncrono y auditoría
 
-- Cola de trabajos en PostgreSQL (`FOR UPDATE SKIP LOCKED`)
-- Eventos de Spring Modulith
-- Auditoría append-only en PostgreSQL con hash encadenado
+| Pieza | Estado |
+|---|:---:|
+| Eventos de Spring Modulith, persistidos en `event_publication` | ✅ |
+| Cola de trabajos en PostgreSQL (`FOR UPDATE SKIP LOCKED`) | 🔜 |
+| Auditoría append-only en PostgreSQL con hash encadenado | 🔜 |
 
 ### Almacenamiento de archivos
 
-- API compatible con S3: **Garage** en local y **Supabase Storage** en producción
-  (antes MinIO; ver [ADR-004](docs/adr/004-garage-en-lugar-de-minio.md))
+| Pieza | Estado |
+|---|:---:|
+| **Garage** en local, por API compatible con S3 | ✅ |
+| **Supabase Storage** en producción, por la misma API | 🔜 |
+
+Era MinIO hasta que dejó de distribuirse; el porqué del cambio está en el
+[ADR-004](docs/adr/004-garage-en-lugar-de-minio.md).
 
 ### Frontend
 
-- React + TypeScript + Vite
-- TanStack Query, React Router, React Hook Form + Zod
-- Tailwind CSS + shadcn/ui
-- Recharts (gráficos)
+Nada implementado todavía: `frontend/` está vacío. Lo decidido es React + TypeScript + Vite, con
+TanStack Query, React Router, React Hook Form + Zod, Tailwind CSS + shadcn/ui y Recharts.
 
 ### Calidad
 
-- JUnit 5, Mockito, AssertJ
-- Testcontainers, Awaitility, WireMock
-- ArchUnit + verificación de Spring Modulith
-- JaCoCo (cobertura) y k6 (pruebas de carga)
+| Herramienta | Estado |
+|---|:---:|
+| JUnit 5, Mockito, AssertJ | ✅ |
+| Testcontainers | ✅ |
+| ArchUnit + verificación de Spring Modulith | ✅ |
+| Awaitility, WireMock | 🔜 |
+| JaCoCo (cobertura) | 🔜 |
+| k6 (pruebas de carga) | 🔜 |
 
 ### DevOps
 
-- Docker + Docker Compose (entorno local)
-- GitHub Actions (CI/CD) + GitHub Container Registry
-- gitleaks + Trivy (seguridad)
-- Actuator + Micrometer + logs JSON (Grafana Cloud opcional)
+| Pieza | Estado |
+|---|:---:|
+| Docker + Docker Compose (entorno local) | ✅ |
+| GitHub Actions: tests, verificación de módulos y compilación nativa | ✅ |
+| Actuator | ✅ |
+| Publicación de imagen en GitHub Container Registry | 🔜 |
+| gitleaks + Trivy (seguridad) | 🔜 |
+| Micrometer + logs JSON (Grafana Cloud opcional) | 🔜 |
 
 ### Despliegue ($0)
+
+Ningún entorno está desplegado todavía. Los destinos elegidos:
 
 | Componente | Servicio |
 |------------|----------|
@@ -69,18 +91,42 @@ trazabilidad auditable de cada aprobación.
 
 ---
 
+## Por qué este stack
+
+Las decisiones costosas de revertir están razonadas en sus ADR; lo demás, en una línea:
+
+- **Monolito modular en vez de microservicios.** Un solo desplegable, con fronteras entre módulos
+  verificadas por la build en lugar de por la red. [ADR-001](docs/adr/001-monolito-modular.md)
+- **Todo en PostgreSQL.** La cola de trabajos y la auditoría viven en la misma base de datos que el
+  dominio, lo que evita operar Redis o Kafka para un volumen que no los necesita y mantiene las
+  transacciones en un solo sitio. [ADR-002](docs/adr/002-todo-en-postgresql.md)
+- **Monorepo.** Un cambio de contrato de API y su cliente entran en el mismo PR.
+  [ADR-003](docs/adr/003-monorepo.md)
+- **Garage en local, Supabase Storage en producción.** Ambos hablan el protocolo S3, así que el
+  backend no distingue uno de otro. [ADR-004](docs/adr/004-garage-en-lugar-de-minio.md)
+- **Compilación nativa con GraalVM.** El plan gratuito de Render da 512 MB y suspende el servicio
+  por inactividad: un binario nativo arranca en centésimas y consume una fracción de lo que necesita
+  la JVM. A cambio, obliga a comprobar la compatibilidad de cada dependencia antes de añadirla
+  (ver [backend/README.md](backend/README.md#notas-sobre-graalvm)).
+- **Java 21.** Los hilos virtuales encajan con un backend dominado por llamadas bloqueantes a base
+  de datos, almacenamiento y Gemini: dejan de retener un hilo del sistema operativo por petición.
+- **Presupuesto de $0.** Render, Neon, Supabase, Vercel y Google AI Studio tienen plan gratuito
+  suficiente para este proyecto, y esa restricción condiciona varias de las decisiones anteriores.
+
+---
+
 ## Estructura del repositorio
 
 ```
 .
 ├── backend/          # API Java 21 + Spring Boot (monolito modular) — ver backend/README.md
-├── frontend/         # SPA React + TypeScript + Vite
-├── infra/docker/     # Docker Compose y Dockerfiles del entorno local
+├── frontend/         # SPA React + TypeScript + Vite              — vacío todavía
+├── infra/docker/     # Docker Compose del entorno local
 ├── docs/
 │   ├── adr/          # Architecture Decision Records
 │   ├── images/       # Diagramas y capturas usadas en la documentación
-│   └── runbooks/     # Procedimientos de operación e incidentes
-├── load-tests/       # Escenarios de carga con k6
+│   └── runbooks/     # Procedimientos de operación e incidentes   — vacío todavía
+├── load-tests/       # Escenarios de carga con k6                 — vacío todavía
 └── .github/          # Plantilla de PR y workflows de CI/CD
 ```
 
@@ -158,11 +204,26 @@ docker compose -f infra/docker/compose.local.yml down      # parar (conserva los
 docker compose -f infra/docker/compose.local.yml down -v   # parar y BORRAR los datos
 ```
 
-Para inspeccionar los archivos subidos (Garage no tiene consola web):
+Para inspeccionar los archivos subidos (Garage no tiene consola web), con las variables del `.env`
+ya cargadas en la shell:
 
 ```bash
-aws --endpoint-url http://localhost:3900 s3 ls s3://rindo-recibos/
+docker run --rm --network host rclone/rclone ls :s3:$S3_BUCKET --config="" \
+  --s3-provider=Other \
+  --s3-endpoint=$S3_ENDPOINT \
+  --s3-region=$S3_REGION \
+  --s3-access-key-id=$S3_ACCESS_KEY \
+  --s3-secret-access-key=$S3_SECRET_KEY
 ```
+
+Si prefieres tenerlo a mano sin Docker, `brew install rclone` y el mismo comando a partir de `ls`.
+
+> **Por qué rclone y no la CLI de AWS.** Las credenciales salen del `.env` que ya tienes, sin
+> duplicarlas en un segundo archivo de configuración (`~/.aws/credentials` o `~/.s3cfg`). Es un
+> binario único sin dependencias, habla con cualquier servidor compatible con S3 —el mismo comando
+> servirá contra Supabase Storage cambiando endpoint y credenciales— y no arrastra la nomenclatura
+> de AWS a un proyecto que no usa AWS. La CLI de Garage se descartó porque solo habla con Garage y
+> no valdría para producción.
 
 ### Si algo falla
 
