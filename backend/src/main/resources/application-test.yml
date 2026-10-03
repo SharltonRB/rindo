@@ -1,0 +1,30 @@
+# Perfil "test": suite automatizada (./mvnw verify) y arranque con spring-boot:test-run.
+#
+# AQUI NO SE DECLARA spring.datasource A PROPOSITO.
+#
+# La base de datos la levanta Testcontainers y la conecta @ServiceConnection, en
+# TestcontainersConfiguration. Esos valores se conocen solo en tiempo de ejecucion, porque
+# el contenedor recibe un puerto distinto en cada arranque. Declarar aqui una URL fija la
+# sobrescribiria y los tests acabarian corriendo contra otra base de datos —en el mejor
+# caso fallando, en el peor ensuciando la del entorno local.
+spring:
+  flyway:
+    # El esquema se construye desde V1 en cada contenedor nuevo, asi que una migracion
+    # rota falla en la suite y no mas tarde, al desplegar.
+    clean-disabled: true
+
+  jpa:
+    properties:
+      hibernate:
+        # Agrupa el SQL de arranque; abrevia los informes cuando un test falla por una
+        # diferencia entre las entidades y lo que creo Flyway.
+        format_sql: true
+
+logging:
+  level:
+    com.rindo: DEBUG
+    org.flywaydb.core: INFO
+    # Testcontainers es ruidoso al descargar y arrancar imagenes. En local interesa verlo
+    # la primera vez; en CI solo alarga el log sin aportar.
+    org.testcontainers: INFO
+    com.github.dockerjava: WARN

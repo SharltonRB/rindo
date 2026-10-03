@@ -1,0 +1,54 @@
+# Perfil "prod": backend en Render contra PostgreSQL en Neon.
+#
+# Todas las credenciales llegan como variables de entorno del proveedor. Sin defaults:
+# un arranque que falla por una variable ausente es un incidente de dos minutos; uno que
+# arranca contra la base de datos equivocada, uno de dos dias.
+spring:
+  datasource:
+    url: ${DATABASE_URL}
+    username: ${DATABASE_USER}
+    password: ${DATABASE_PASSWORD}
+    hikari:
+      # El plan gratuito de Neon corta por numero de conexiones, no por CPU. Un pool
+      # pequeno con timeout corto degrada de forma predecible; uno grande agota el limite
+      # de la cuenta y tumba tambien a cualquier otro servicio que use la misma base.
+      maximum-pool-size: 5
+      minimum-idle: 1
+      connection-timeout: 10000
+      # Neon suspende la computacion tras unos minutos sin trafico. Reciclar las
+      # conexiones antes evita entregar al pool una conexion que el servidor ya cerro.
+      max-lifetime: 240000
+      idle-timeout: 120000
+
+  jpa:
+    # En produccion el esquema ya existe y lo gobierna Flyway. Generar DDL aqui seria,
+    # como mucho, redundante; como poco, una via para alterar tablas sin migracion.
+    hibernate:
+      ddl-auto: validate
+
+server:
+  # Render asigna el puerto por variable de entorno y enruta el trafico ahi.
+  port: ${PORT:8080}
+  shutdown: graceful
+  # El balanceador de Render termina TLS y reenvia por HTTP. Sin esto, los enlaces que
+  # genere la aplicacion saldrian con esquema http y host interno.
+  forward-headers-strategy: framework
+
+management:
+  endpoints:
+    web:
+      exposure:
+        # Mas restrictivo que el application.yml base: /metrics y /prometheus describen la
+        # forma del sistema y no tienen por que ser publicos mientras no haya un scraper
+        # autenticado que los consuma.
+        include: health,info
+  endpoint:
+    health:
+      # Sin detalle de componentes: un health publico no debe revelar el host de la base
+      # de datos ni que servicios externos estan caidos.
+      show-details: never
+
+logging:
+  level:
+    root: WARN
+    com.rindo: INFO
