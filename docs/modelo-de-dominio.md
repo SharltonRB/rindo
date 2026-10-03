@@ -62,7 +62,7 @@ cosa. Son inmutables y se validan al construirse.
 | **`Money`** | `amount` (`BigDecimal`) + `currency` (ISO 4217) | Un importe sin moneda no significa nada. Encapsularlos impide sumar colones con dólares por accidente |
 | **`ExpenseStatus`** | Enumerado + tabla de transiciones válidas | La regla "de `APPROVED` solo se va a `REIMBURSED`" vive en el tipo, no repartida por los servicios |
 | **`EmailAddress`** | `String` validado y normalizado a minúsculas | Evita que `Ana@x.com` y `ana@x.com` se traten como usuarios distintos |
-| **`StorageKey`** | Ruta en el bucket S3/MinIO | Aísla el formato de la clave del resto del dominio |
+| **`StorageKey`** | Ruta en el bucket S3 | Aísla el formato de la clave del resto del dominio |
 | **`TaxId`** | Identificación fiscal con su país | Su formato y validación dependen del país |
 
 ### Por qué el dinero nunca se modela con `double`
@@ -111,7 +111,7 @@ implementación interna oculta. La comunicación entre módulos es por llamada a
 | `companies` | Empresas y departamentos. Raíz del multi-tenant | `Company`, `Department` | `CompanyCreated` | — |
 | `users` | Usuarios, roles, autenticación y emisión de JWT | `User` | `UserInvited`, `UserDisabled` | `CompanyCreated` |
 | `categories` | Árbol de categorías de gasto | `Category` | — | `CompanyCreated` |
-| `receipts` | Subida y almacenamiento de archivos en S3/MinIO | `Receipt` | `ReceiptUploaded` | — |
+| `receipts` | Subida y almacenamiento de archivos en S3 | `Receipt` | `ReceiptUploaded` | — |
 | `extraction` | Extracción de datos del recibo con Spring AI + Gemini Flash | — (escribe en `Receipt` vía su API) | `ReceiptExtracted`, `ReceiptExtractionFailed` | `ReceiptUploaded` |
 | `expenses` | Ciclo de vida del gasto y su máquina de estados | `Expense`, `ApprovalStep` | `ExpenseSubmitted`, `ExpenseApproved`, `ExpenseRejected`, `ExpenseReimbursed` | `ReceiptExtracted` |
 | `policies` | Reglas de admisibilidad y niveles de aprobación requeridos | `Policy` | `PolicyViolated` | `ExpenseSubmitted` |

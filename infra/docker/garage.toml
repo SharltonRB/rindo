@@ -1,0 +1,32 @@
+# Configuracion de Garage para el entorno local de Rindo.
+# Se monta en /etc/garage.toml, que es donde el binario la busca por defecto.
+#
+# AQUI NO HAY SECRETOS. rpc_secret y admin_token se inyectan por las variables
+# GARAGE_RPC_SECRET y GARAGE_ADMIN_TOKEN, que salen de infra/docker/.env.
+
+metadata_dir = "/var/lib/garage/meta"
+data_dir = "/var/lib/garage/data"
+
+# SQLite, no LMDB: para un nodo de desarrollo el rendimiento sobra y el archivo
+# resultante se puede abrir e inspeccionar con cualquier cliente de SQLite.
+db_engine = "sqlite"
+
+# Una sola copia de cada bloque. Garage esta pensado para repartirse entre varias
+# maquinas; con un unico nodo, exigir replicas lo dejaria esperando a companeros que
+# nunca llegan y rechazando escrituras.
+replication_factor = 1
+
+rpc_bind_addr = "[::]:3901"
+rpc_public_addr = "127.0.0.1:3901"
+
+[s3_api]
+# El SDK de S3 exige una region. "garage" es el convenio del propio proyecto; lo que
+# importa es que backend y servidor usen la misma cadena.
+s3_region = "garage"
+api_bind_addr = "[::]:3900"
+root_domain = ".s3.garage.localhost"
+
+[admin]
+# Expone /health y /metrics. Lo usa el healthcheck del compose para saber si el
+# servicio esta listo de verdad, no solo si el proceso existe.
+api_bind_addr = "[::]:3903"

@@ -1,0 +1,29 @@
+# Perfil "local": desarrollo contra los servicios de infra/docker/compose.local.yml.
+#
+#   docker compose -f infra/docker/compose.local.yml up -d
+#   set -a; source infra/docker/.env; set +a
+#   cd backend && ./mvnw spring-boot:run -Dspring-boot.run.profiles=local
+#
+# Ninguna credencial tiene valor por defecto. Si falta la variable, Spring aborta con
+# "Could not resolve placeholder" durante el arranque; es preferible a conectarse con un
+# usuario adivinado o a arrancar contra una base de datos que no es la que se cree.
+spring:
+  datasource:
+    url: jdbc:postgresql://${POSTGRES_HOST:localhost}:${POSTGRES_PORT:5432}/${POSTGRES_DB}
+    username: ${POSTGRES_USER}
+    password: ${POSTGRES_PASSWORD}
+    hikari:
+      # Una portatil no necesita mas: el cuello de botella en local es el desarrollador,
+      # no la concurrencia. Un pool grande solo esconde fugas de conexiones hasta que el
+      # mismo codigo llega a produccion, donde el pool si es escaso.
+      maximum-pool-size: 10
+      connection-timeout: 5000
+
+logging:
+  level:
+    com.rindo: DEBUG
+    # Las sentencias que ejecuta Hibernate, visibles mientras se disena el esquema.
+    # Deliberadamente sin BasicBinder (los parametros): llena la consola y, en cuanto
+    # haya datos reales de gastos, escribiria informacion personal en los logs.
+    org.hibernate.SQL: DEBUG
+    org.flywaydb.core: INFO

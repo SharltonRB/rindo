@@ -1,0 +1,83 @@
+# Entorno de desarrollo local de Rindo.
+#
+#   docker compose -f infra/docker/compose.local.yml up -d
+#
+# Las credenciales NO viven aqui: salen de infra/docker/.env, que esta ignorado por Git.
+# La sintaxis ${VAR:?mensaje} hace que Compose aborte con un error legible si la variable
+# falta, en lugar de arrancar PostgreSQL con una contrasena vacia y fallar mas tarde en un
+# sitio donde la causa ya no se ve.
+name: rindo-local
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: rindo-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:?falta POSTGRES_DB; copia .env.example a .env}
+      POSTGRES_USER: ${POSTGRES_USER:?falta POSTGRES_USER; copia .env.example a .env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?falta POSTGRES_PASSWORD; copia .env.example a .env}
+      # El servidor se crea una sola vez, al inicializar el volumen. Fijar locale y
+      # codificacion aqui evita que la maquina de cada quien decida el collation de la
+      # base de datos, que es justo el tipo de diferencia que hace que un ORDER BY ordene
+      # distinto en local y en produccion.
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=C"
+    ports:
+      # Publicado solo en la interfaz de loopback: la base de datos de desarrollo no tiene
+      # por que ser alcanzable desde la red del cafe o del coworking.
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      # pg_isready responde antes de que el servidor acepte conexiones reales durante la
+      # primera inicializacion, por eso ademas hay start_period: los primeros segundos no
+      # cuentan como fallo.
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 15s
+
+  # Almacenamiento de objetos compatible con S3, donde viven los recibos subidos.
+  #
+  # Era MinIO hasta el ADR-004: MinIO archivo su repositorio en abril de 2026 y borro sus
+  # imagenes de Docker Hub en septiembre, de modo que `docker compose up` dejo de ser
+  # reproducible. Garage habla el mismo protocolo S3, asi que el backend no distingue
+  # entre esto y el Supabase Storage de produccion.
+  storage:
+    image: dxflrs/garage:v2.4.1
+    container_name: rindo-storage
+    restart: unless-stopped
+    # --single-node evita los cinco pasos manuales (layout assign, layout apply, bucket
+    # create, key create, bucket allow) que Garage exige por defecto. --default-bucket
+    # crea ademas el bucket y la clave de acceso a partir de las variables de entorno,
+    # que es lo que permite que "un solo comando" sea cierto de verdad.
+    # La imagen no declara ENTRYPOINT, solo CMD ["/garage", "server"]. Por eso aqui hay
+    # que repetir la ruta del binario: sin ella, Docker intentaria ejecutar "server".
+    command: ["/garage", "server", "--single-node", "--default-bucket"]
+    environment:
+      GARAGE_RPC_SECRET: ${GARAGE_RPC_SECRET:?falta GARAGE_RPC_SECRET; copia .env.example a .env}
+      GARAGE_ADMIN_TOKEN: ${GARAGE_ADMIN_TOKEN:?falta GARAGE_ADMIN_TOKEN; copia .env.example a .env}
+      GARAGE_DEFAULT_BUCKET: ${S3_BUCKET:?falta S3_BUCKET; copia .env.example a .env}
+      GARAGE_DEFAULT_ACCESS_KEY: ${S3_ACCESS_KEY:?falta S3_ACCESS_KEY; copia .env.example a .env}
+      GARAGE_DEFAULT_SECRET_KEY: ${S3_SECRET_KEY:?falta S3_SECRET_KEY; copia .env.example a .env}
+    ports:
+      - "127.0.0.1:${S3_PORT:-3900}:3900"
+      - "127.0.0.1:${GARAGE_ADMIN_PORT:-3903}:3903"
+    volumes:
+      - ./garage.toml:/etc/garage.toml:ro
+      - storage-data:/var/lib/garage
+    healthcheck:
+      # La imagen es distroless: no trae shell ni curl, asi que el healthcheck invoca el
+      # propio binario. `status` solo responde cuando el nodo termino de inicializarse.
+      test: ["CMD", "/garage", "status"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 20s
+
+volumes:
+  postgres-data:
+    name: rindo-postgres-data
+  storage-data:
+    name: rindo-storage-data
