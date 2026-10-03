@@ -204,11 +204,26 @@ docker compose -f infra/docker/compose.local.yml down      # parar (conserva los
 docker compose -f infra/docker/compose.local.yml down -v   # parar y BORRAR los datos
 ```
 
-Para inspeccionar los archivos subidos (Garage no tiene consola web):
+Para inspeccionar los archivos subidos (Garage no tiene consola web), con las variables del `.env`
+ya cargadas en la shell:
 
 ```bash
-aws --endpoint-url http://localhost:3900 s3 ls s3://rindo-recibos/
+docker run --rm --network host rclone/rclone ls :s3:$S3_BUCKET --config="" \
+  --s3-provider=Other \
+  --s3-endpoint=$S3_ENDPOINT \
+  --s3-region=$S3_REGION \
+  --s3-access-key-id=$S3_ACCESS_KEY \
+  --s3-secret-access-key=$S3_SECRET_KEY
 ```
+
+Si prefieres tenerlo a mano sin Docker, `brew install rclone` y el mismo comando a partir de `ls`.
+
+> **Por qué rclone y no la CLI de AWS.** Las credenciales salen del `.env` que ya tienes, sin
+> duplicarlas en un segundo archivo de configuración (`~/.aws/credentials` o `~/.s3cfg`). Es un
+> binario único sin dependencias, habla con cualquier servidor compatible con S3 —el mismo comando
+> servirá contra Supabase Storage cambiando endpoint y credenciales— y no arrastra la nomenclatura
+> de AWS a un proyecto que no usa AWS. La CLI de Garage se descartó porque solo habla con Garage y
+> no valdría para producción.
 
 ### Si algo falla
 
