@@ -27,6 +27,34 @@ el diseño del dominio, en [modelo-de-dominio.md](../docs/modelo-de-dominio.md).
 ./mvnw test -Dtest=ModularidadTest   # Solo la verificación de módulos (no necesita Docker)
 ```
 
+Para desarrollar contra el entorno local de `infra/docker/` en lugar de Testcontainers:
+
+```bash
+set -a; source ../infra/docker/.env; set +a
+./mvnw spring-boot:run -Dspring-boot.run.profiles=local
+```
+
+El paso a paso completo —incluido cómo levantar PostgreSQL y el almacenamiento— está en
+[«Cómo correr en local»](../README.md#cómo-correr-en-local).
+
+## Perfiles
+
+| Perfil | Archivo | Cuándo se usa | De dónde salen las credenciales |
+|---|---|---|---|
+| `local` | `application-local.yml` | Desarrollo contra `infra/docker/` | `infra/docker/.env`, cargado en la shell |
+| `test` | `application-test.yml` | `./mvnw verify` y `spring-boot:test-run` | Las inyecta Testcontainers; no se declaran |
+| `prod` | `application-prod.yml` | Render | Variables de entorno del proveedor |
+
+**Ningún perfil está activo por defecto.** Sin `--spring.profiles.active`, el `application.yml` base
+no define `spring.datasource` y la aplicación no arranca. Es deliberado: el modo por defecto debería
+fallar, no adivinar contra qué base de datos conectarse.
+
+En `local` y `prod` las credenciales se declaran **sin valor por defecto**, de modo que una variable
+ausente aborta el arranque con `Could not resolve placeholder` en lugar de conectarse a otro sitio.
+`application-test.yml` es el caso contrario y no declara `spring.datasource` en absoluto: esos
+valores solo se conocen en caliente, porque Testcontainers asigna un puerto distinto en cada
+ejecución, y fijarlos aquí haría que los tests corrieran contra la base de datos equivocada.
+
 Compilación nativa (requiere GraalVM como `JAVA_HOME`):
 
 ```bash
@@ -45,7 +73,7 @@ com.rindo
 ├── companies/    empresas y departamentos, raíz del multi-tenant
 ├── users/        usuarios, roles, autenticación y emisión de JWT
 ├── categories/   árbol de categorías de gasto
-├── receipts/     subida y almacenamiento de archivos en S3/MinIO
+├── receipts/     subida y almacenamiento de archivos en S3
 ├── extraction/   extracción de datos del recibo con Spring AI y Gemini Flash
 ├── expenses/     ciclo de vida del gasto y su máquina de estados
 ├── policies/     reglas de admisibilidad y niveles de aprobación
